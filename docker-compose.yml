@@ -8,3 +8,7 @@ services:
     build: ./mock_grid_operator_service
     ports:
       - "5001:5001"
+  market_service:
+    build: ./market_service
+    ports:
+      - "5002:5002"
