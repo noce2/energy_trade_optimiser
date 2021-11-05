@@ -7,4 +7,4 @@ app = FastAPI()
 
 @app.get("/")
 def read_root():
-    return {"Hello": "from optimiser"}
+    return {"Hello": "from mock grid operator"}
