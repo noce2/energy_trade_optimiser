@@ -10,7 +10,7 @@ from os import getenv
 
 from mypy_boto3_dynamodb.service_resource import _Table
 
-from app.models import BatteryState, ChargeRequest
+from app.models import BatteryState, ChargeRequest, DischargeRequest
 
 app = FastAPI()
 dynamodb = boto3.resource(
@@ -20,6 +20,7 @@ BATTERY_STATE_TABLENAME = "BATTERY_STATE"
 DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 BATTERY_MAX_CHARGE_CYCLE = 20
 BATTERY_MAX_DISCHARGE_CYCLE = 20
+TIMESTEPS_BETWEEN_BATTERY_STATE = timedelta(minutes=30)
 
 
 @app.get("/")
@@ -71,7 +72,7 @@ def charge_battery(request: ChargeRequest):
         request.settlementPeriodStartTime, DATE_TIME_FORMAT
     )
 
-    dateTimeForPreviousState = dateTimeForRequest - timedelta(minutes=30)
+    dateTimeForPreviousState = dateTimeForRequest - TIMESTEPS_BETWEEN_BATTERY_STATE
 
     state = get_battery_state(dateTimeForPreviousState.strftime(DATE_TIME_FORMAT))
 
@@ -91,6 +92,40 @@ def charge_battery(request: ChargeRequest):
             "sameDayExportTotal": state["sameDayExportTotal"],
             "cumulativeImportTotal": state["cumulativeImportTotal"] + request.bidVolume,
             "cumulativeExportTotal": state["cumulativeExportTotal"],
+        }
+
+        table = dynamodb.Table(BATTERY_STATE_TABLENAME)
+        table.put_item(Item=newState)
+    return newState
+
+
+@app.post("/discharge/", response_model=BatteryState)
+def charge_battery(request: DischargeRequest):
+    dateTimeForRequest = datetime.strptime(
+        request.settlementPeriodStartTime, DATE_TIME_FORMAT
+    )
+
+    dateTimeForPreviousState = dateTimeForRequest - TIMESTEPS_BETWEEN_BATTERY_STATE
+
+    state = get_battery_state(dateTimeForPreviousState.strftime(DATE_TIME_FORMAT))
+
+    if (request.offerVolume + state["sameDayExportTotal"]) > Decimal(
+        BATTERY_MAX_DISCHARGE_CYCLE
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Request will cause battery to exceed max discharge cycle",
+        )
+    else:
+        newState = {
+            "settlementPeriodStartTime": request.settlementPeriodStartTime,
+            "chargeLevelAtPeriodStart": state["chargeLevelAtPeriodStart"]
+            - request.offerVolume,
+            "sameDayImportTotal": state["sameDayImportTotal"],
+            "sameDayExportTotal": state["sameDayExportTotal"] + request.offerVolume,
+            "cumulativeImportTotal": state["cumulativeImportTotal"],
+            "cumulativeExportTotal": state["cumulativeExportTotal"]
+            + request.offerVolume,
         }
 
         table = dynamodb.Table(BATTERY_STATE_TABLENAME)
