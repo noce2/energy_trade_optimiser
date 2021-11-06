@@ -12,6 +12,14 @@
       "module": "uvicorn",
       "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5003"],
       "preLaunchTask": "startDynamoDbLocal"
+    },
+    {
+      "name": "Python:Market Service",
+      "type": "python",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/market_service",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5002"]
     }
   ]
 }
