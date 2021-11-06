@@ -1,0 +1,5 @@
+name: energy_trade_optimiser
+channels:
+  - defaults
+dependencies:
+  - python=3.9
