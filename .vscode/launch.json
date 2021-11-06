@@ -1,0 +1,17 @@
+{
+  // Use IntelliSense para saber los atributos posibles.
+  // Mantenga el puntero para ver las descripciones de los existentes atributos.
+  // Para más información, visite: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python:Battery Service",
+      "type": "python",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/battery_service",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5003"],
+      "preLaunchTask": "startDynamoDbLocal"
+    }
+  ]
+}
