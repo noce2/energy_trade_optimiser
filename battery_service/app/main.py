@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
 from typing import Optional
 import boto3
 import re
@@ -9,11 +10,16 @@ from os import getenv
 
 from mypy_boto3_dynamodb.service_resource import _Table
 
+from app.models import BatteryState, ChargeRequest
+
 app = FastAPI()
 dynamodb = boto3.resource(
     "dynamodb", endpoint_url=getenv("SVC_DYNAMODB_HOST"), region_name="eu-west-2"
 )
 BATTERY_STATE_TABLENAME = "BATTERY_STATE"
+DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+BATTERY_MAX_CHARGE_CYCLE = 20
+BATTERY_MAX_DISCHARGE_CYCLE = 20
 
 
 @app.get("/")
@@ -21,7 +27,7 @@ def read_root():
     return {"Hello": "from battery service"}
 
 
-@app.get("/state/")
+@app.get("/state/", response_model=BatteryState)
 def get_battery_state(settlementPeriodStartTime: str):
     queryResult = {}
     try:
@@ -59,6 +65,39 @@ def get_battery_state(settlementPeriodStartTime: str):
             raise e
 
 
+@app.post("/charge/", response_model=BatteryState)
+def charge_battery(request: ChargeRequest):
+    dateTimeForRequest = datetime.strptime(
+        request.settlementPeriodStartTime, DATE_TIME_FORMAT
+    )
+
+    dateTimeForPreviousState = dateTimeForRequest - timedelta(minutes=30)
+
+    state = get_battery_state(dateTimeForPreviousState.strftime(DATE_TIME_FORMAT))
+
+    if (request.bidVolume + state["sameDayImportTotal"]) > Decimal(
+        BATTERY_MAX_CHARGE_CYCLE
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Request will cause battery to exceed max charge cycle",
+        )
+    else:
+        newState = {
+            "settlementPeriodStartTime": request.settlementPeriodStartTime,
+            "chargeLevelAtPeriodStart": state["chargeLevelAtPeriodStart"]
+            + request.bidVolume,
+            "sameDayImportTotal": state["sameDayImportTotal"] + request.bidVolume,
+            "sameDayExportTotal": state["sameDayExportTotal"],
+            "cumulativeImportTotal": state["cumulativeImportTotal"] + request.bidVolume,
+            "cumulativeExportTotal": state["cumulativeExportTotal"],
+        }
+
+        table = dynamodb.Table(BATTERY_STATE_TABLENAME)
+        table.put_item(Item=newState)
+    return newState
+
+
 def createTable():
     table = dynamodb.create_table(
         TableName=BATTERY_STATE_TABLENAME,
@@ -79,7 +118,7 @@ def seedDataBase(*, table: _Table, initialTimeStamp: str):
     table.put_item(
         Item={
             "settlementPeriodStartTime": initialTimeStamp,
-            "currentChargeLevel": Decimal(5.00),
+            "chargeLevelAtPeriodStart": Decimal(5.00),
             "sameDayImportTotal": Decimal(0.00),
             "sameDayExportTotal": Decimal(0.00),
             "cumulativeImportTotal": Decimal(0.00),
