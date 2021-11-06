@@ -1,0 +1,94 @@
+{
+    "client": "Thunder Client",
+    "collectionName": "Energy Trade Optimiser",
+    "dateExported": "2021-11-06T18:57:44.785Z",
+    "version": "1.1",
+    "folders": [],
+    "requests": [
+        {
+            "containerId": "",
+            "sortNum": 10000,
+            "headers": [
+                {
+                    "name": "Accept",
+                    "value": "*/*"
+                },
+                {
+                    "name": "User-Agent",
+                    "value": "Thunder Client (https://www.thunderclient.io)"
+                }
+            ],
+            "colId": "96889045-de54-4e0e-a25b-bc2bf2a17a5e",
+            "name": "GET Battery Service State",
+            "url": "http://localhost:5003/state/?settlementPeriodStartTime=2021-10-04T00:00:00",
+            "method": "GET",
+            "modified": "2021-11-06T17:08:21.840Z",
+            "created": "2021-11-06T17:07:20.644Z",
+            "_id": "d5b62ef9-5254-41d6-a434-6cbb9e397a8c",
+            "params": [
+                {
+                    "name": "settlementPeriodStartTime",
+                    "value": "2021-10-04T00:00:00",
+                    "isPath": false
+                }
+            ],
+            "tests": []
+        },
+        {
+            "containerId": "",
+            "sortNum": 20000,
+            "headers": [
+                {
+                    "name": "Accept",
+                    "value": "*/*"
+                },
+                {
+                    "name": "User-Agent",
+                    "value": "Thunder Client (https://www.thunderclient.io)"
+                }
+            ],
+            "colId": "96889045-de54-4e0e-a25b-bc2bf2a17a5e",
+            "name": "POST Battery Service Charge ",
+            "url": "http://localhost:5003/charge",
+            "method": "POST",
+            "modified": "2021-11-06T18:27:30.738Z",
+            "created": "2021-11-06T18:26:39.480Z",
+            "_id": "ccc8e9e6-7fb4-4859-8cf1-6c73108ac9f7",
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n    \"settlementPeriodStartTime\": \"2021-10-04T00:30:00\",\n    \"bidVolume\": \"1.00\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "containerId": "",
+            "sortNum": 30000,
+            "headers": [
+                {
+                    "name": "Accept",
+                    "value": "*/*"
+                },
+                {
+                    "name": "User-Agent",
+                    "value": "Thunder Client (https://www.thunderclient.io)"
+                }
+            ],
+            "colId": "96889045-de54-4e0e-a25b-bc2bf2a17a5e",
+            "name": "POST Battery Service Discharge",
+            "url": "http://localhost:5003/discharge",
+            "method": "POST",
+            "modified": "2021-11-06T18:55:01.899Z",
+            "created": "2021-11-06T18:54:44.145Z",
+            "_id": "da531bb8-054e-4f0a-b58b-1de0658e3c38",
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n    \"settlementPeriodStartTime\": \"2021-10-04T00:30:00\",\n    \"offerVolume\": \"1.00\"\n}",
+                "form": []
+            },
+            "tests": []
+        }
+    ]
+}
