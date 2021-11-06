@@ -16,3 +16,18 @@ services:
     build: ./battery_service
     ports:
       - "5003:5003"
+    depends_on:
+      - dynamodb-local
+    environment:
+      AWS_ACCESS_KEY_ID: "DUMMYIDEXAMPLE"
+      AWS_SECRET_ACCESS_KEY: "DUMMYEXAMPLEKEY"
+      SVC_DYNAMODB_HOST: "http://dynamodb-local:8000"
+  dynamodb-local:
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    image: "amazon/dynamodb-local:1.17.0"
+    container_name: dynamodb-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./docker/dynamodb:/home/dynamodblocal/data"
+    working_dir: /home/dynamodblocal
