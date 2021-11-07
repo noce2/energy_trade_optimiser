@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional, Union, cast
-from os import makedirs
+from os import makedirs, getenv
 
 from fastapi import BackgroundTasks, FastAPI
 from loguru import logger
@@ -31,12 +31,14 @@ app = FastAPI()
 
 @app.on_event("startup")
 def configure_logging():
+    logLocation = getenv("SVC_LOG_LOCATION", "./logs")
+    logFileName = f"{logLocation}/run_output.log"
     try:
-        makedirs("./logs")
+        makedirs(logLocation)
     except OSError:
         logger.info("log directory not made as it already exists")
 
-    logger.add("./logs/run_output.log", rotation="10 MB", serialize=True)
+    logger.add(logFileName, rotation="10 MB", serialize=True)
 
 
 @app.get("/")
