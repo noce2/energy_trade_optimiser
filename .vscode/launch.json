@@ -20,6 +20,14 @@
       "cwd": "${workspaceFolder}/market_service",
       "module": "uvicorn",
       "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5002"]
+    },
+    {
+      "name": "Python:Optimiser Service",
+      "type": "python",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/optimiser_service",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5000"]
     }
   ]
 }
