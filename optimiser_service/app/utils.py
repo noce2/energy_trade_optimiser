@@ -7,6 +7,9 @@ from fastapi.encoders import jsonable_encoder
 from app.models import BidOfferPair
 
 
+DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+
 def log_optimiser_current_state(
     *,
     simulationTimestamp: datetime,
@@ -46,3 +49,13 @@ def log_optimiser_current_state(
             }
         )
     )
+
+
+def convertDateTimeToFormat(dateTime: datetime, format: str = DATE_TIME_FORMAT) -> str:
+    return dateTime.strftime(format)
+
+
+def convertFromFormatToDateTime(
+    dateTimeString: str, format: str = DATE_TIME_FORMAT
+) -> datetime:
+    return datetime.strptime(dateTimeString, format)

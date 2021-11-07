@@ -8,22 +8,15 @@ from loguru import logger
 from json import dumps
 
 from app.models import BidOfferPair
-from app.utils import log_optimiser_current_state
+from app.utils import (
+    convertDateTimeToFormat,
+    convertFromFormatToDateTime,
+    log_optimiser_current_state,
+)
 
-DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 BATTERY_MAX_CHARGE_CYCLE = 20
 BATTERY_MAX_DISCHARGE_CYCLE = 20
 SIMULATION_TIMESTEP = timedelta(minutes=30)
-
-
-def convertDateTimeToFormat(dateTime: datetime, format: str = DATE_TIME_FORMAT) -> str:
-    return dateTime.strftime(format)
-
-
-def convertFromFormatToDateTime(
-    dateTimeString: str, format: str = DATE_TIME_FORMAT
-) -> datetime:
-    return datetime.strptime(dateTimeString, format)
 
 
 app = FastAPI()
