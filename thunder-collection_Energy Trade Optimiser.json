@@ -1,7 +1,7 @@
 {
     "client": "Thunder Client",
     "collectionName": "Energy Trade Optimiser",
-    "dateExported": "2021-11-06T18:57:44.785Z",
+    "dateExported": "2021-11-07T21:33:05.346Z",
     "version": "1.1",
     "folders": [],
     "requests": [
@@ -29,6 +29,69 @@
                 {
                     "name": "settlementPeriodStartTime",
                     "value": "2021-10-04T00:00:00",
+                    "isPath": false
+                }
+            ],
+            "tests": []
+        },
+        {
+            "containerId": "",
+            "sortNum": 15000,
+            "headers": [
+                {
+                    "name": "Accept",
+                    "value": "*/*"
+                },
+                {
+                    "name": "User-Agent",
+                    "value": "Thunder Client (https://www.thunderclient.io)"
+                }
+            ],
+            "colId": "96889045-de54-4e0e-a25b-bc2bf2a17a5e",
+            "name": "GET Market Service Predictions",
+            "url": "http://localhost:5002/predictions/?timeOfPredictionRequest=2021-10-04T00:00:00",
+            "method": "GET",
+            "modified": "2021-11-06T21:30:12.046Z",
+            "created": "2021-11-06T21:27:45.301Z",
+            "_id": "0403ab25-6c43-4621-a388-3da7f4f06030",
+            "params": [
+                {
+                    "name": "timeOfPredictionRequest",
+                    "value": "2021-10-04T00:00:00",
+                    "isPath": false
+                }
+            ],
+            "tests": []
+        },
+        {
+            "containerId": "",
+            "sortNum": 17500,
+            "headers": [
+                {
+                    "name": "Accept",
+                    "value": "*/*"
+                },
+                {
+                    "name": "User-Agent",
+                    "value": "Thunder Client (https://www.thunderclient.io)"
+                }
+            ],
+            "colId": "96889045-de54-4e0e-a25b-bc2bf2a17a5e",
+            "name": "GET Optimiser Service Strategy",
+            "url": "http://localhost:5000/strategy?firstSettlementPeriodStart=2021-10-04T00:00:00&lastSettlementPeriodStart=2021-10-04T00:30:00",
+            "method": "GET",
+            "modified": "2021-11-07T11:14:41.550Z",
+            "created": "2021-11-07T11:13:00.563Z",
+            "_id": "1a208cf4-8f23-4e13-a3fb-f5f612e62535",
+            "params": [
+                {
+                    "name": "firstSettlementPeriodStart",
+                    "value": "2021-10-04T00:00:00",
+                    "isPath": false
+                },
+                {
+                    "name": "lastSettlementPeriodStart",
+                    "value": "2021-10-04T00:30:00",
                     "isPath": false
                 }
             ],
