@@ -100,7 +100,7 @@ def charge_battery(request: ChargeRequest):
 
 
 @app.post("/discharge/", response_model=BatteryState)
-def charge_battery(request: DischargeRequest):
+def discharge_battery(request: DischargeRequest):
     dateTimeForRequest = datetime.strptime(
         request.settlementPeriodStartTime, DATE_TIME_FORMAT
     )
