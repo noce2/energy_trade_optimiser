@@ -1,9 +1,14 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
+from os import makedirs
 
-from fastapi import FastAPI
-from pydantic.main import BaseModel
+from fastapi import BackgroundTasks, FastAPI
+from loguru import logger
+from json import dumps
+
+from app.models import BidOfferPair
+from app.utils import log_optimiser_current_state
 
 DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 BATTERY_MAX_CHARGE_CYCLE = 20
@@ -24,13 +29,14 @@ def convertFromFormatToDateTime(
 app = FastAPI()
 
 
-class BidOfferPair(BaseModel):
-    submissionTime: str
-    settlementPeriodStartTime: str
-    offerPrice: Decimal
-    offerVolume: Decimal
-    bidPrice: Decimal
-    bidVolume: Decimal
+@app.on_event("startup")
+def configure_logging():
+    try:
+        makedirs("./logs")
+    except OSError:
+        logger.info("log directory not made as it already exists")
+
+    logger.add("./logs/run_output.log", rotation="10 MB", serialize=True)
 
 
 @app.get("/")
@@ -40,7 +46,9 @@ def read_root():
 
 @app.get("/strategy/", response_model=List[BidOfferPair])
 def optimise_revenue_for_period(
-    firstSettlementPeriodStart: str, lastSettlementPeriodStart: str
+    firstSettlementPeriodStart: str,
+    lastSettlementPeriodStart: str,
+    background_tasks: BackgroundTasks,
 ) -> List[BidOfferPair]:
     firstSettlementPeriodStartAsDateTime = convertFromFormatToDateTime(
         firstSettlementPeriodStart
@@ -65,12 +73,15 @@ def optimise_revenue_for_period(
             SIMULATION_TIMESTEP * step
         )
         resultsToReturn[step] = evaluate_bid_offer_pair_at_time(
-            settlementPeriodStart=settlementPeriodAtCurrentStep
+            settlementPeriodStart=settlementPeriodAtCurrentStep,
+            backgroundTasksHandler=background_tasks,
         )
-    return resultsToReturn
+    return cast(List[BidOfferPair], resultsToReturn)
 
 
-def evaluate_bid_offer_pair_at_time(settlementPeriodStart: datetime) -> BidOfferPair:
+def evaluate_bid_offer_pair_at_time(
+    settlementPeriodStart: datetime, backgroundTasksHandler: BackgroundTasks
+) -> BidOfferPair:
     bidOfferPair = BidOfferPair(
         submissionTime=convertDateTimeToFormat(
             settlementPeriodStart - SIMULATION_TIMESTEP
@@ -80,5 +91,20 @@ def evaluate_bid_offer_pair_at_time(settlementPeriodStart: datetime) -> BidOffer
         offerVolume=Decimal(0),
         bidVolume=Decimal(0),
         bidPrice=Decimal(-9999),
+    )
+
+    backgroundTasksHandler.add_task(
+        log_optimiser_current_state,
+        simulationTimestamp=convertDateTimeToFormat(settlementPeriodStart),
+        batteryStateOfCharge=Decimal(5),
+        totalEnergyExportedFromStartToDate=Decimal(5),
+        totalEnergyImportedFromStartToDate=Decimal(5),
+        totalEnergyExportedOnCurrentDay=Decimal(5),
+        totalEnergyImportedOnCurrentDay=Decimal(5),
+        bidPricePrediction=Decimal(0),
+        offerPricePrediction=Decimal(0),
+        submittedBidOfferPair=bidOfferPair,
+        bidAccepted=False,
+        offerAccepted=False,
     )
     return bidOfferPair
