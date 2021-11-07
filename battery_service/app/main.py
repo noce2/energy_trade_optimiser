@@ -84,11 +84,17 @@ def charge_battery(request: ChargeRequest):
             detail="Request will cause battery to exceed max charge cycle",
         )
     else:
+        sameDayImportTotal = (
+            state["sameDayImportTotal"] + request.bidVolume
+            if dateTimeForPreviousState.date() == dateTimeForRequest.date()
+            else request.bidVolume
+        )
+
         newState = {
             "settlementPeriodStartTime": request.settlementPeriodStartTime,
             "chargeLevelAtPeriodStart": state["chargeLevelAtPeriodStart"]
             + request.bidVolume,
-            "sameDayImportTotal": state["sameDayImportTotal"] + request.bidVolume,
+            "sameDayImportTotal": sameDayImportTotal,
             "sameDayExportTotal": state["sameDayExportTotal"],
             "cumulativeImportTotal": state["cumulativeImportTotal"] + request.bidVolume,
             "cumulativeExportTotal": state["cumulativeExportTotal"],
@@ -117,12 +123,17 @@ def discharge_battery(request: DischargeRequest):
             detail="Request will cause battery to exceed max discharge cycle",
         )
     else:
+        sameDayExportTotal = (
+            state["sameDayExportTotal"] + request.offerVolume
+            if dateTimeForPreviousState.date() == dateTimeForRequest.date()
+            else request.offerVolume
+        )
         newState = {
             "settlementPeriodStartTime": request.settlementPeriodStartTime,
             "chargeLevelAtPeriodStart": state["chargeLevelAtPeriodStart"]
             - request.offerVolume,
             "sameDayImportTotal": state["sameDayImportTotal"],
-            "sameDayExportTotal": state["sameDayExportTotal"] + request.offerVolume,
+            "sameDayExportTotal": sameDayExportTotal,
             "cumulativeImportTotal": state["cumulativeImportTotal"],
             "cumulativeExportTotal": state["cumulativeExportTotal"]
             + request.offerVolume,
