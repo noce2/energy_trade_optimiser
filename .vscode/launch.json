@@ -11,7 +11,7 @@
       "cwd": "${workspaceFolder}/battery_service",
       "module": "uvicorn",
       "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5003"],
-      "preLaunchTask": "startDynamoDbLocal"
+      "preLaunchTask": "cleanDb"
     },
     {
       "name": "Python:Market Service",
