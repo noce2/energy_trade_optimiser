@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+import json
 from os import getenv
 from typing import Dict, TypedDict
 from pydantic.main import BaseModel
@@ -50,6 +51,17 @@ class DischargeRequest(BaseModel):
     offerVolume: Decimal
 
 
+JSON_HEADERS = {"Content-Type": "application/json"}
+
+
+class DecimalCompatibleEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return obj.to_eng_string()
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
+
+
 def get_next_48_market_predictions(dateTime: datetime) -> MarketPredictions:
     response = requests.get(
         f"{MARKET_SERVICE_HOST_ADDRESS}/predictions",
@@ -80,7 +92,8 @@ def submit_bid_offer_pair(bidOfferPair: BidOfferPair) -> BidOfferPairSubmissionR
     logger.info(f"submitting bid offer: {bidOfferPair}")
     response = requests.post(
         f"{GRID_OPERATOR_HOST_ADDRESS}/submissions",
-        json=bidOfferPair.dict(),
+        headers=JSON_HEADERS,
+        data=json.dumps(bidOfferPair.dict(), cls=DecimalCompatibleEncoder),
     )
 
     try:
@@ -94,7 +107,8 @@ def submit_bid_offer_pair(bidOfferPair: BidOfferPair) -> BidOfferPairSubmissionR
 def charge_battery(chargeRequest: ChargeRequest) -> BatteryState:
     response = requests.post(
         f"{BATTERY_SERVICE_HOST_ADDRESS}/charge",
-        json=chargeRequest.dict(),
+        headers=JSON_HEADERS,
+        data=json.dumps(chargeRequest.dict(), cls=DecimalCompatibleEncoder),
     )
 
     try:
@@ -107,7 +121,8 @@ def charge_battery(chargeRequest: ChargeRequest) -> BatteryState:
 def discharge_battery(dischargeRequest: DischargeRequest) -> BatteryState:
     response = requests.post(
         f"{BATTERY_SERVICE_HOST_ADDRESS}/discharge",
-        json=dischargeRequest.dict(),
+        headers=JSON_HEADERS,
+        data=json.dumps(dischargeRequest.dict(), cls=DecimalCompatibleEncoder),
     )
 
     try:
