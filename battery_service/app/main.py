@@ -1,16 +1,21 @@
 from decimal import Decimal
 from datetime import datetime, timedelta
-from typing import Optional
+import json
+from typing import Optional, cast
 import boto3
 import re
+from boto3.dynamodb.conditions import Key
 
 from fastapi import FastAPI, HTTPException
 from botocore import errorfactory
 from os import getenv
+import logging
 
 from mypy_boto3_dynamodb.service_resource import _Table
 
 from app.models import BatteryState, ChargeRequest, DischargeRequest
+
+BATTERY_MAX_CAPACITY = 10
 
 app = FastAPI()
 dynamodb = boto3.resource(
@@ -31,6 +36,9 @@ def read_root():
 @app.get("/state/", response_model=BatteryState)
 def get_battery_state(settlementPeriodStartTime: str):
     queryResult = {}
+    settlementPeriodStartTimeAsDateTime = datetime.strptime(
+        settlementPeriodStartTime, DATE_TIME_FORMAT
+    )
     try:
 
         table = dynamodb.Table(BATTERY_STATE_TABLENAME)
@@ -41,12 +49,20 @@ def get_battery_state(settlementPeriodStartTime: str):
 
         if table.item_count == 0:
             ## TODO FIX ME!!! ALWAYS SEDDING DATA!!! NO PERSISTENCe
-            seedDataBase(table=table, initialTimeStamp=settlementPeriodStartTime)
+            seedDataBase(
+                table=table, initialTimeStamp=settlementPeriodStartTimeAsDateTime
+            )
 
         queryResult = table.get_item(
-            Key={"settlementPeriodStartTime": settlementPeriodStartTime},
+            Key={
+                "settlementPeriodStartTimeEpoch": Decimal(
+                    settlementPeriodStartTimeAsDateTime.timestamp()
+                ),
+                "settlementPeriodDay": settlementPeriodStartTimeAsDateTime.date().isoformat(),
+            },
         )
         if queryResult and queryResult.get("Item", None):
+            queryResult["Item"]["settlementPeriodStartTime"] = settlementPeriodStartTime
             return queryResult["Item"]
 
         raise HTTPException(
@@ -57,12 +73,21 @@ def get_battery_state(settlementPeriodStartTime: str):
             # table is empty, create it and set initial state
             table = createTable()
 
-            seedDataBase(table=table, initialTimeStamp=settlementPeriodStartTime)
+            seedDataBase(
+                table=table, initialTimeStamp=settlementPeriodStartTimeAsDateTime
+            )
 
             response = table.get_item(
-                Key={"settlementPeriodStartTime": settlementPeriodStartTime}
+                Key={
+                    "settlementPeriodStartTimeEpoch": Decimal(
+                        settlementPeriodStartTimeAsDateTime.timestamp()
+                    ),
+                    "settlementPeriodDay": settlementPeriodStartTimeAsDateTime.date().isoformat(),
+                },
             )
             item = response["Item"]
+
+            item["settlementPeriodStartTime"] = settlementPeriodStartTime
             return item
         else:
             raise e
@@ -81,54 +106,94 @@ def charge_battery(request: ChargeRequest):
         request.settlementPeriodStartTime, DATE_TIME_FORMAT
     )
 
-    table = dynamodb.Table(BATTERY_STATE_TABLENAME)
-
-    dateTimeForPreviousState = dateTimeForRequest - TIMESTEPS_BETWEEN_BATTERY_STATE
     dateTimeForNextState = dateTimeForRequest + TIMESTEPS_BETWEEN_BATTERY_STATE
 
-    previousState = table.get_item(
-        Key={
-            "settlementPeriodStartTime": dateTimeForPreviousState.strftime(
-                DATE_TIME_FORMAT
-            )
-        },
-    )["Item"]
+    table = dynamodb.Table(BATTERY_STATE_TABLENAME)
 
-    if (request.bidVolume + previousState["sameDayImportTotal"]) > Decimal(
-        BATTERY_MAX_CHARGE_CYCLE
-    ):
+    currentState = table.get_item(
+        Key={
+            "settlementPeriodDay": dateTimeForRequest.date().isoformat(),
+            "settlementPeriodStartTimeEpoch": Decimal(dateTimeForRequest.timestamp()),
+        },
+    ).get("Item", {})
+
+    if not currentState:
+        ## Create a new current state from last known state on same day
+        lastKnownStateSearch = table.query(
+            KeyConditionExpression=(
+                Key("settlementPeriodStartTimeEpoch").lt(
+                    Decimal(dateTimeForRequest.timestamp())
+                )
+                & Key("settlementPeriodDay").eq(
+                    dateTimeForRequest.date().isoformat()  ## state from at least the same day
+                )
+            ),
+            ScanIndexForward=False,  ## query in descending time order
+            Limit=1,
+        )
+
+        logging.info(
+            f"queried for last known battery state, output was: {lastKnownStateSearch}"
+        )
+
+        if len(lastKnownStateSearch["Items"]) == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="no previous state found for the battery",
+            )
+
+        currentState = lastKnownStateSearch["Items"][0]
+
+        currentState["settlementPeriodDay"] = dateTimeForRequest.date().isoformat()
+        currentState["settlementPeriodStartTimeEpoch"] = Decimal(
+            dateTimeForRequest.timestamp()
+        )
+
+        table.put_item(Item=currentState)
+
+    if (
+        request.bidVolume + cast(Decimal, currentState["sameDayImportTotal"])
+    ) > Decimal(BATTERY_MAX_CHARGE_CYCLE):
         raise HTTPException(
             status_code=403,
             detail="Request will cause battery to exceed max charge cycle",
         )
+    elif (
+        request.bidVolume + cast(Decimal, currentState["chargeLevelAtPeriodStart"])
+    ) > Decimal(BATTERY_MAX_CAPACITY):
+        raise HTTPException(
+            status_code=403,
+            detail="Request will cause battery to exceed max charge capacity",
+        )
     else:
         sameDayImportTotal = (
-            previousState["sameDayImportTotal"] + request.bidVolume
-            if dateTimeForPreviousState.date() == dateTimeForRequest.date()
+            cast(Decimal, currentState["sameDayImportTotal"]) + request.bidVolume
+            if datetime.fromtimestamp(
+                float(cast(Decimal, currentState["settlementPeriodStartTimeEpoch"]))
+            ).date()
+            == dateTimeForRequest.date()
             else request.bidVolume
         )
 
-        stateAtChargeRequestStart = previousState
-        stateAtChargeRequestStart[
-            "settlementPeriodStartTime"
-        ] = request.settlementPeriodStartTime
-
         stateAtChargeRequestEnd = {
+            "settlementPeriodDay": dateTimeForNextState.date().isoformat(),
+            "settlementPeriodStartTimeEpoch": Decimal(dateTimeForNextState.timestamp()),
             "settlementPeriodStartTime": dateTimeForNextState.strftime(
                 DATE_TIME_FORMAT
             ),
-            "chargeLevelAtPeriodStart": stateAtChargeRequestStart[
-                "chargeLevelAtPeriodStart"
-            ]
+            "chargeLevelAtPeriodStart": cast(
+                Decimal, currentState["chargeLevelAtPeriodStart"]
+            )
             + request.bidVolume,
             "sameDayImportTotal": sameDayImportTotal,
-            "sameDayExportTotal": stateAtChargeRequestStart["sameDayExportTotal"],
-            "cumulativeImportTotal": stateAtChargeRequestStart["cumulativeImportTotal"]
+            "sameDayExportTotal": currentState["sameDayExportTotal"],
+            "cumulativeImportTotal": cast(
+                Decimal, currentState["cumulativeImportTotal"]
+            )
             + request.bidVolume,
-            "cumulativeExportTotal": stateAtChargeRequestStart["cumulativeExportTotal"],
+            "cumulativeExportTotal": currentState["cumulativeExportTotal"],
         }
 
-        table.put_item(Item=stateAtChargeRequestStart)
         table.put_item(Item=stateAtChargeRequestEnd)
     return stateAtChargeRequestEnd
 
@@ -200,9 +265,13 @@ def discharge_battery(request: DischargeRequest):
 def createTable():
     table = dynamodb.create_table(
         TableName=BATTERY_STATE_TABLENAME,
-        KeySchema=[{"AttributeName": "settlementPeriodStartTime", "KeyType": "HASH"}],
+        KeySchema=[
+            {"AttributeName": "settlementPeriodDay", "KeyType": "HASH"},
+            {"AttributeName": "settlementPeriodStartTimeEpoch", "KeyType": "RANGE"},
+        ],
         AttributeDefinitions=[
-            {"AttributeName": "settlementPeriodStartTime", "AttributeType": "S"}
+            {"AttributeName": "settlementPeriodDay", "AttributeType": "S"},
+            {"AttributeName": "settlementPeriodStartTimeEpoch", "AttributeType": "N"},
         ],
         ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
     )
@@ -213,10 +282,11 @@ def createTable():
     return table
 
 
-def seedDataBase(*, table: _Table, initialTimeStamp: str):
+def seedDataBase(*, table: _Table, initialTimeStamp: datetime):
     table.put_item(
         Item={
-            "settlementPeriodStartTime": initialTimeStamp,
+            "settlementPeriodDay": initialTimeStamp.date().isoformat(),
+            "settlementPeriodStartTimeEpoch": Decimal(initialTimeStamp.timestamp()),
             "chargeLevelAtPeriodStart": Decimal(5.00),
             "sameDayImportTotal": Decimal(0.00),
             "sameDayExportTotal": Decimal(0.00),
