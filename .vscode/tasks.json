@@ -27,6 +27,76 @@
       "osx": {
         "command": "~/anaconda3/envs/energy_trade_optimiser/bin/python"
       }
+    },
+    {
+      "type": "shell",
+      "args": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5003"
+      ],
+      "isBackground": true,
+      "dependsOn": "cleanDb",
+      "label": "startBatteryService",
+      "linux": {
+        "command": "/home/${env:USER}/anaconda3/envs/energy_trade_optimiser/bin/python"
+      },
+      "osx": {
+        "command": "~/anaconda3/envs/energy_trade_optimiser/bin/python"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/battery_service"
+      }
+    },
+    {
+      "type": "shell",
+      "args": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5002"
+      ],
+      "isBackground": true,
+      "label": "startMarketService",
+      "linux": {
+        "command": "/home/${env:USER}/anaconda3/envs/energy_trade_optimiser/bin/python"
+      },
+      "osx": {
+        "command": "~/anaconda3/envs/energy_trade_optimiser/bin/python"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/market_service"
+      }
+    },
+    {
+      "type": "shell",
+      "args": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5001"
+      ],
+      "isBackground": true,
+      "label": "startGridService",
+      "linux": {
+        "command": "/home/${env:USER}/anaconda3/envs/energy_trade_optimiser/bin/python"
+      },
+      "osx": {
+        "command": "~/anaconda3/envs/energy_trade_optimiser/bin/python"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/mock_grid_operator_service"
+      }
     }
   ]
 }
