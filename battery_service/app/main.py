@@ -143,7 +143,7 @@ def charge_battery(request: ChargeRequest):
     ) > Decimal(BATTERY_MAX_CAPACITY):
         raise HTTPException(
             status_code=403,
-            detail="Request will cause battery to exceed max charge capacity",
+            detail=f'Request of {request.bidVolume}MWh to current state of {currentState["chargeLevelAtPeriodStart"]}MWh will cause battery to exceed max charge capacity',
         )
     else:
         sameDayImportTotal = (

@@ -163,7 +163,9 @@ def optimise_revenue_for_period(
             if submissionResult["accepted"]:
                 discharge_battery(
                     DischargeRequest(
-                        settlementPeriodStartTime=settlementPeriodDateTime,
+                        settlementPeriodStartTime=convertDateTimeToFormat(
+                            settlementPeriodDateTime
+                        ),
                         offerVolume=OFFER_BID_VOLUME,
                     )
                 )
@@ -187,7 +189,9 @@ def optimise_revenue_for_period(
             if submissionResult["accepted"]:
                 charge_battery(
                     ChargeRequest(
-                        settlementPeriodStartTime=settlementPeriodDateTime,
+                        settlementPeriodStartTime=convertDateTimeToFormat(
+                            settlementPeriodDateTime
+                        ),
                         bidVolume=OFFER_BID_VOLUME,
                     )
                 )
