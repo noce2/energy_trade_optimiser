@@ -34,11 +34,13 @@ def get_battery_state(settlementPeriodStartTime: str):
     try:
 
         table = dynamodb.Table(BATTERY_STATE_TABLENAME)
+        table.load()
 
         if not (table.table_status == "ACTIVE"):
             table = createTable()
 
         if table.item_count == 0:
+            ## TODO FIX ME!!! ALWAYS SEDDING DATA!!! NO PERSISTENCe
             seedDataBase(table=table, initialTimeStamp=settlementPeriodStartTime)
 
         queryResult = table.get_item(
@@ -69,15 +71,30 @@ def get_battery_state(settlementPeriodStartTime: str):
 ## TODO Change to a POST on /state
 @app.post("/charge/", response_model=BatteryState)
 def charge_battery(request: ChargeRequest):
+    """
+    Start charging the battery at the datetime specified.
+
+    Returns the battery state at end of current period
+    (i.e. beginning of next period).
+    """
     dateTimeForRequest = datetime.strptime(
         request.settlementPeriodStartTime, DATE_TIME_FORMAT
     )
 
+    table = dynamodb.Table(BATTERY_STATE_TABLENAME)
+
     dateTimeForPreviousState = dateTimeForRequest - TIMESTEPS_BETWEEN_BATTERY_STATE
+    dateTimeForNextState = dateTimeForRequest + TIMESTEPS_BETWEEN_BATTERY_STATE
 
-    state = get_battery_state(dateTimeForPreviousState.strftime(DATE_TIME_FORMAT))
+    previousState = table.get_item(
+        Key={
+            "settlementPeriodStartTime": dateTimeForPreviousState.strftime(
+                DATE_TIME_FORMAT
+            )
+        },
+    )["Item"]
 
-    if (request.bidVolume + state["sameDayImportTotal"]) > Decimal(
+    if (request.bidVolume + previousState["sameDayImportTotal"]) > Decimal(
         BATTERY_MAX_CHARGE_CYCLE
     ):
         raise HTTPException(
@@ -86,38 +103,63 @@ def charge_battery(request: ChargeRequest):
         )
     else:
         sameDayImportTotal = (
-            state["sameDayImportTotal"] + request.bidVolume
+            previousState["sameDayImportTotal"] + request.bidVolume
             if dateTimeForPreviousState.date() == dateTimeForRequest.date()
             else request.bidVolume
         )
 
-        newState = {
-            "settlementPeriodStartTime": request.settlementPeriodStartTime,
-            "chargeLevelAtPeriodStart": state["chargeLevelAtPeriodStart"]
+        stateAtChargeRequestStart = previousState
+        stateAtChargeRequestStart[
+            "settlementPeriodStartTime"
+        ] = request.settlementPeriodStartTime
+
+        stateAtChargeRequestEnd = {
+            "settlementPeriodStartTime": dateTimeForNextState.strftime(
+                DATE_TIME_FORMAT
+            ),
+            "chargeLevelAtPeriodStart": stateAtChargeRequestStart[
+                "chargeLevelAtPeriodStart"
+            ]
             + request.bidVolume,
             "sameDayImportTotal": sameDayImportTotal,
-            "sameDayExportTotal": state["sameDayExportTotal"],
-            "cumulativeImportTotal": state["cumulativeImportTotal"] + request.bidVolume,
-            "cumulativeExportTotal": state["cumulativeExportTotal"],
+            "sameDayExportTotal": stateAtChargeRequestStart["sameDayExportTotal"],
+            "cumulativeImportTotal": stateAtChargeRequestStart["cumulativeImportTotal"]
+            + request.bidVolume,
+            "cumulativeExportTotal": stateAtChargeRequestStart["cumulativeExportTotal"],
         }
 
-        table = dynamodb.Table(BATTERY_STATE_TABLENAME)
-        table.put_item(Item=newState)
-    return newState
+        table.put_item(Item=stateAtChargeRequestStart)
+        table.put_item(Item=stateAtChargeRequestEnd)
+    return stateAtChargeRequestEnd
 
 
 ## TODO Change to a POST on /state
 @app.post("/discharge/", response_model=BatteryState)
 def discharge_battery(request: DischargeRequest):
+    """
+    Start discharging the battery at the datetime specified.
+
+    Returns the battery state at end of current period
+    (i.e. beginning of next period).
+    """
     dateTimeForRequest = datetime.strptime(
         request.settlementPeriodStartTime, DATE_TIME_FORMAT
     )
 
+    table = dynamodb.Table(BATTERY_STATE_TABLENAME)
+
     dateTimeForPreviousState = dateTimeForRequest - TIMESTEPS_BETWEEN_BATTERY_STATE
+    dateTimeForNextState = dateTimeForRequest + TIMESTEPS_BETWEEN_BATTERY_STATE
 
-    state = get_battery_state(dateTimeForPreviousState.strftime(DATE_TIME_FORMAT))
+    previousState = table.get_item(
+        Key={
+            "settlementPeriodStartTime": dateTimeForPreviousState.strftime(
+                DATE_TIME_FORMAT
+            )
+        },
+    )["Item"]
 
-    if (request.offerVolume + state["sameDayExportTotal"]) > Decimal(
+    if (request.offerVolume + previousState["sameDayExportTotal"]) > Decimal(
         BATTERY_MAX_DISCHARGE_CYCLE
     ):
         raise HTTPException(
@@ -126,24 +168,33 @@ def discharge_battery(request: DischargeRequest):
         )
     else:
         sameDayExportTotal = (
-            state["sameDayExportTotal"] + request.offerVolume
+            previousState["sameDayExportTotal"] + request.offerVolume
             if dateTimeForPreviousState.date() == dateTimeForRequest.date()
             else request.offerVolume
         )
-        newState = {
-            "settlementPeriodStartTime": request.settlementPeriodStartTime,
-            "chargeLevelAtPeriodStart": state["chargeLevelAtPeriodStart"]
+
+        stateAtChargeRequestStart = previousState
+        stateAtChargeRequestStart[
+            "settlementPeriodStartTime"
+        ] = request.settlementPeriodStartTime
+        stateAtChargeRequestEnd = {
+            "settlementPeriodStartTime": dateTimeForNextState.strftime(
+                DATE_TIME_FORMAT
+            ),
+            "chargeLevelAtPeriodStart": stateAtChargeRequestStart[
+                "chargeLevelAtPeriodStart"
+            ]
             - request.offerVolume,
-            "sameDayImportTotal": state["sameDayImportTotal"],
+            "sameDayImportTotal": stateAtChargeRequestStart["sameDayImportTotal"],
             "sameDayExportTotal": sameDayExportTotal,
-            "cumulativeImportTotal": state["cumulativeImportTotal"],
-            "cumulativeExportTotal": state["cumulativeExportTotal"]
+            "cumulativeImportTotal": stateAtChargeRequestStart["cumulativeImportTotal"],
+            "cumulativeExportTotal": stateAtChargeRequestStart["cumulativeExportTotal"]
             + request.offerVolume,
         }
 
-        table = dynamodb.Table(BATTERY_STATE_TABLENAME)
-        table.put_item(Item=newState)
-    return newState
+        table.put_item(Item=stateAtChargeRequestStart)
+        table.put_item(Item=stateAtChargeRequestEnd)
+    return stateAtChargeRequestEnd
 
 
 def createTable():
