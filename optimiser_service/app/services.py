@@ -7,6 +7,7 @@ import requests
 from app.models import BidOfferPair
 
 from app.utils import convertDateTimeToFormat
+from loguru import logger
 
 MARKET_SERVICE_HOST_ADDRESS = getenv("SVC_MARKET_HOST", "http://localhost:5002")
 BATTERY_SERVICE_HOST_ADDRESS = getenv("SVC_BATTERY_HOST", "http://localhost:5003")
@@ -76,9 +77,10 @@ def get_battery_state(dateTime: datetime) -> BatteryState:
 
 
 def submit_bid_offer_pair(bidOfferPair: BidOfferPair) -> BidOfferPairSubmissionResult:
+    logger.info(f"submitting bid offer: {bidOfferPair}")
     response = requests.post(
         f"{GRID_OPERATOR_HOST_ADDRESS}/submissions",
-        data=bidOfferPair.dict(),
+        json=bidOfferPair.dict(),
     )
 
     try:
@@ -92,7 +94,7 @@ def submit_bid_offer_pair(bidOfferPair: BidOfferPair) -> BidOfferPairSubmissionR
 def charge_battery(chargeRequest: ChargeRequest) -> BatteryState:
     response = requests.post(
         f"{BATTERY_SERVICE_HOST_ADDRESS}/charge",
-        data=chargeRequest.dict(),
+        json=chargeRequest.dict(),
     )
 
     try:
@@ -105,7 +107,7 @@ def charge_battery(chargeRequest: ChargeRequest) -> BatteryState:
 def discharge_battery(dischargeRequest: DischargeRequest) -> BatteryState:
     response = requests.post(
         f"{BATTERY_SERVICE_HOST_ADDRESS}/discharge",
-        data=dischargeRequest.dict(),
+        json=dischargeRequest.dict(),
     )
 
     try:

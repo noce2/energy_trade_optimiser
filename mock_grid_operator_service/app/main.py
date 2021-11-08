@@ -6,6 +6,7 @@ app = FastAPI()
 
 from pydantic import BaseModel
 from decimal import Decimal
+from logging import info
 
 BID_OFFER_PAIR_ACCEPTANCE_RATE = 0.8
 
@@ -30,6 +31,7 @@ def read_root():
 
 @app.post("/submissions", response_model=BidOfferPairSubmissionResult)
 def evaluate_offer_or_bid(bidOfferPair: BidOfferPair) -> BidOfferPairSubmissionResult:
+    info(f"received bidOfferPair, {bidOfferPair}")
     if bidOfferPair.bidVolume == Decimal(0) and bidOfferPair.offerVolume == Decimal(0):
         return BidOfferPairSubmissionResult(
             submissionTime=bidOfferPair.submissionTime,
