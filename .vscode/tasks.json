@@ -97,6 +97,15 @@
       "options": {
         "cwd": "${workspaceFolder}/mock_grid_operator_service"
       }
+    },
+    {
+      "label": "startAncillaryServices",
+      "dependsOn": [
+        "startGridService",
+        "startMarketService",
+        "startBatteryService"
+      ],
+      "isBackground": true
     }
   ]
 }
