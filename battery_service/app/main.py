@@ -11,9 +11,10 @@ from botocore import errorfactory
 from os import getenv
 import logging
 
-from mypy_boto3_dynamodb.service_resource import _Table
+from mypy_boto3_dynamodb.service_resource import _Table, Table
 
 from app.models import BatteryState, ChargeRequest, DischargeRequest
+from app.utils import findLastKnownState
 
 BATTERY_MAX_CAPACITY = 10
 
@@ -119,30 +120,9 @@ def charge_battery(request: ChargeRequest):
 
     if not currentState:
         ## Create a new current state from last known state on same day
-        lastKnownStateSearch = table.query(
-            KeyConditionExpression=(
-                Key("settlementPeriodStartTimeEpoch").lt(
-                    Decimal(dateTimeForRequest.timestamp())
-                )
-                & Key("settlementPeriodDay").eq(
-                    dateTimeForRequest.date().isoformat()  ## state from at least the same day
-                )
-            ),
-            ScanIndexForward=False,  ## query in descending time order
-            Limit=1,
+        currentState = findLastKnownState(
+            dateTimeForRequest=dateTimeForRequest, table=table
         )
-
-        logging.info(
-            f"queried for last known battery state, output was: {lastKnownStateSearch}"
-        )
-
-        if len(lastKnownStateSearch["Items"]) == 0:
-            raise HTTPException(
-                status_code=500,
-                detail="no previous state found for the battery",
-            )
-
-        currentState = lastKnownStateSearch["Items"][0]
 
         currentState["settlementPeriodDay"] = dateTimeForRequest.date().isoformat()
         currentState["settlementPeriodStartTimeEpoch"] = Decimal(
@@ -211,53 +191,73 @@ def discharge_battery(request: DischargeRequest):
         request.settlementPeriodStartTime, DATE_TIME_FORMAT
     )
 
-    table = dynamodb.Table(BATTERY_STATE_TABLENAME)
-
-    dateTimeForPreviousState = dateTimeForRequest - TIMESTEPS_BETWEEN_BATTERY_STATE
     dateTimeForNextState = dateTimeForRequest + TIMESTEPS_BETWEEN_BATTERY_STATE
 
-    previousState = table.get_item(
-        Key={
-            "settlementPeriodStartTime": dateTimeForPreviousState.strftime(
-                DATE_TIME_FORMAT
-            )
-        },
-    )["Item"]
+    table = dynamodb.Table(BATTERY_STATE_TABLENAME)
 
-    if (request.offerVolume + previousState["sameDayExportTotal"]) > Decimal(
-        BATTERY_MAX_DISCHARGE_CYCLE
-    ):
+    currentState = table.get_item(
+        Key={
+            "settlementPeriodDay": dateTimeForRequest.date().isoformat(),
+            "settlementPeriodStartTimeEpoch": Decimal(dateTimeForRequest.timestamp()),
+        },
+    ).get("Item", {})
+
+    if not currentState:
+        ## Create a new current state from last known state on same day
+        currentState = findLastKnownState(
+            dateTimeForRequest=dateTimeForRequest, table=table
+        )
+
+        currentState["settlementPeriodDay"] = dateTimeForRequest.date().isoformat()
+        currentState["settlementPeriodStartTimeEpoch"] = Decimal(
+            dateTimeForRequest.timestamp()
+        )
+
+        table.put_item(Item=currentState)
+
+    if (
+        request.offerVolume + cast(Decimal, currentState["sameDayExportTotal"])
+    ) > Decimal(BATTERY_MAX_DISCHARGE_CYCLE):
         raise HTTPException(
             status_code=403,
             detail="Request will cause battery to exceed max discharge cycle",
         )
+    elif (
+        cast(Decimal, currentState["chargeLevelAtPeriodStart"]) - request.offerVolume
+    ) < 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Request will cause battery to exceed max charge capacity",
+        )
     else:
         sameDayExportTotal = (
-            previousState["sameDayExportTotal"] + request.offerVolume
-            if dateTimeForPreviousState.date() == dateTimeForRequest.date()
+            cast(Decimal, currentState["sameDayExportTotal"]) + request.offerVolume
+            if datetime.fromtimestamp(
+                float(cast(Decimal, currentState["settlementPeriodStartTimeEpoch"]))
+            ).date()
+            == dateTimeForRequest.date()
             else request.offerVolume
         )
 
-        stateAtChargeRequestStart = previousState
-        stateAtChargeRequestStart[
-            "settlementPeriodStartTime"
-        ] = request.settlementPeriodStartTime
         stateAtChargeRequestEnd = {
+            "settlementPeriodDay": dateTimeForNextState.date().isoformat(),
+            "settlementPeriodStartTimeEpoch": Decimal(dateTimeForNextState.timestamp()),
             "settlementPeriodStartTime": dateTimeForNextState.strftime(
                 DATE_TIME_FORMAT
             ),
-            "chargeLevelAtPeriodStart": stateAtChargeRequestStart[
-                "chargeLevelAtPeriodStart"
-            ]
+            "chargeLevelAtPeriodStart": cast(
+                Decimal, currentState["chargeLevelAtPeriodStart"]
+            )
             - request.offerVolume,
-            "sameDayImportTotal": stateAtChargeRequestStart["sameDayImportTotal"],
+            "sameDayImportTotal": currentState["sameDayImportTotal"],
             "sameDayExportTotal": sameDayExportTotal,
-            "cumulativeImportTotal": stateAtChargeRequestStart["cumulativeImportTotal"],
-            "cumulativeExportTotal": stateAtChargeRequestStart["cumulativeExportTotal"]
+            "cumulativeImportTotal": currentState["cumulativeImportTotal"],
+            "cumulativeExportTotal": cast(
+                Decimal, currentState["cumulativeExportTotal"]
+            )
             + request.offerVolume,
         }
 
-        table.put_item(Item=stateAtChargeRequestStart)
         table.put_item(Item=stateAtChargeRequestEnd)
     return stateAtChargeRequestEnd
 
