@@ -28,6 +28,14 @@
       "cwd": "${workspaceFolder}/optimiser_service",
       "module": "uvicorn",
       "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5000"]
+    },
+    {
+      "name": "Python:Mock Grid Operator Service",
+      "type": "python",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/mock_grid_operator_service",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "0.0.0.0", "--port", "5001"]
     }
   ]
 }
