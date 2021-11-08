@@ -66,6 +66,7 @@ def get_battery_state(settlementPeriodStartTime: str):
             raise e
 
 
+## TODO Change to a POST on /state
 @app.post("/charge/", response_model=BatteryState)
 def charge_battery(request: ChargeRequest):
     dateTimeForRequest = datetime.strptime(
@@ -105,6 +106,7 @@ def charge_battery(request: ChargeRequest):
     return newState
 
 
+## TODO Change to a POST on /state
 @app.post("/discharge/", response_model=BatteryState)
 def discharge_battery(request: DischargeRequest):
     dateTimeForRequest = datetime.strptime(
