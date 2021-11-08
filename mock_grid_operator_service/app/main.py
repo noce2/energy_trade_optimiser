@@ -30,6 +30,16 @@ def read_root():
 
 @app.post("/submissions", response_model=BidOfferPairSubmissionResult)
 def evaluate_offer_or_bid(bidOfferPair: BidOfferPair) -> BidOfferPairSubmissionResult:
+    if bidOfferPair.bidVolume == Decimal(0) and bidOfferPair.offerVolume == Decimal(0):
+        return BidOfferPairSubmissionResult(
+            submissionTime=bidOfferPair.submissionTime,
+            settlementPeriodStartTime=bidOfferPair.settlementPeriodStartTime,
+            offerPrice=bidOfferPair.offerPrice,
+            offerVolume=bidOfferPair.offerVolume,
+            bidPrice=bidOfferPair.bidPrice,
+            bidVolume=bidOfferPair.bidVolume,
+            accepted=True,
+        )
     result = BidOfferPairSubmissionResult(
         submissionTime=bidOfferPair.submissionTime,
         settlementPeriodStartTime=bidOfferPair.settlementPeriodStartTime,
