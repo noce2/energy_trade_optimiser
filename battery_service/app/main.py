@@ -46,9 +46,13 @@ def get_battery_state(settlementPeriodStartTime: str):
         table.load()
 
         if not (table.table_status == "ACTIVE"):
+            logging.warning(
+                f"Table in {table.table_status} which is not active, attempting to create."
+            )
             table = createTable()
 
         if table.item_count == 0:
+            logging.warning(f"Table in empty seeding.")
             ## TODO FIX ME!!! ALWAYS SEDDING DATA!!! NO PERSISTENCe
             seedDataBase(
                 table=table, initialTimeStamp=settlementPeriodStartTimeAsDateTime
@@ -66,9 +70,21 @@ def get_battery_state(settlementPeriodStartTime: str):
             queryResult["Item"]["settlementPeriodStartTime"] = settlementPeriodStartTime
             return queryResult["Item"]
 
-        raise HTTPException(
-            status_code=404, detail="No state found for settlement period"
+        ## if no current state, extrapolate from last known state
+        currentState = findLastKnownState(
+            dateTimeForRequest=settlementPeriodStartTimeAsDateTime, table=table
         )
+
+        currentState[
+            "settlementPeriodDay"
+        ] = settlementPeriodStartTimeAsDateTime.date().isoformat()
+        currentState["settlementPeriodStartTimeEpoch"] = Decimal(
+            settlementPeriodStartTimeAsDateTime.timestamp()
+        )
+        currentState["settlementPeriodStartTime"] = settlementPeriodStartTime
+
+        response = table.put_item(Item=currentState)
+        return currentState
     except errorfactory.ClientError as e:
         if re.search(r"ResourceNotFoundException", str(e)):
             # table is empty, create it and set initial state
@@ -263,6 +279,7 @@ def discharge_battery(request: DischargeRequest):
 
 
 def createTable():
+    logging.warning(f"Create {BATTERY_STATE_TABLENAME} table")
     table = dynamodb.create_table(
         TableName=BATTERY_STATE_TABLENAME,
         KeySchema=[
@@ -278,6 +295,7 @@ def createTable():
 
     # Wait until the table exists.
     table.meta.client.get_waiter("table_exists").wait(TableName=BATTERY_STATE_TABLENAME)
+    logging.info(f"Successfully created {BATTERY_STATE_TABLENAME} table")
 
     return table
 
