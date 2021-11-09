@@ -106,11 +106,17 @@ def optimise_revenue_for_period(
             SIMULATION_TIMESTEP * step
         )
 
+        settlementPeriodDateTime = simulationTimestamp + TIMESTEP_BEFORE_GATE_CLOSURE
+
         isTimeStepStartOfNewDay = (
             simulationTimestamp.date()
-            != (simulationTimestamp - SIMULATION_TIMESTEP).date
+            != (simulationTimestamp - SIMULATION_TIMESTEP).date()
         )
-        batteryState = get_battery_state(simulationTimestamp)
+
+        batteryStateAtSimulationTimestamp = get_battery_state(simulationTimestamp)
+        batteryStateAtSettlementPeriodTimestamp = get_battery_state(
+            settlementPeriodDateTime
+        )
         next48Predictions = get_next_48_market_predictions(simulationTimestamp)
         bidAccepted = False
         offerAccepted = False
@@ -140,15 +146,21 @@ def optimise_revenue_for_period(
                 each[0]: each[1] for each in highest5OfferTimesAndPrices
             }
 
-        settlementPeriodDateTime = simulationTimestamp + TIMESTEP_BEFORE_GATE_CLOSURE
-
         possibleBidOfferPair = None
 
         if (
             convertDateTimeToFormat(settlementPeriodDateTime)
             in prospectiveOffersAndBids["offer_prices"]
-            and (batteryState["chargeLevelAtPeriodStart"] < BATTERY_MAX_CAPACITY)
-            and (batteryState["sameDayExportTotal"] < BATTERY_MAX_DISCHARGE_CYCLE)
+            and (
+                batteryStateAtSettlementPeriodTimestamp["chargeLevelAtPeriodStart"]
+                - OFFER_BID_VOLUME
+                >= 0
+            )
+            and (
+                batteryStateAtSettlementPeriodTimestamp["sameDayExportTotal"]
+                + OFFER_BID_VOLUME
+                <= BATTERY_MAX_DISCHARGE_CYCLE
+            )
         ):
             possibleBidOfferPair = evaluate_bid_offer_pair_at_time(
                 simulationTimeStamp=simulationTimestamp,
@@ -173,8 +185,18 @@ def optimise_revenue_for_period(
         elif (
             convertDateTimeToFormat(settlementPeriodDateTime)
             in prospectiveOffersAndBids["bid_prices"]
-            and (batteryState["chargeLevelAtPeriodStart"] > 0)
-            and (batteryState["sameDayImportTotal"] < BATTERY_MAX_CHARGE_CYCLE)
+            and (
+                batteryStateAtSettlementPeriodTimestamp["chargeLevelAtPeriodStart"]
+                + OFFER_BID_VOLUME
+                <= BATTERY_MAX_CAPACITY
+            )
+            and (
+                (
+                    batteryStateAtSettlementPeriodTimestamp["sameDayImportTotal"]
+                    + OFFER_BID_VOLUME
+                )
+                <= BATTERY_MAX_CHARGE_CYCLE
+            )
         ):
             possibleBidOfferPair = evaluate_bid_offer_pair_at_time(
                 simulationTimeStamp=simulationTimestamp,
@@ -206,11 +228,21 @@ def optimise_revenue_for_period(
         background_tasks.add_task(
             log_optimiser_current_state,
             simulationTimestamp=convertDateTimeToFormat(simulationTimestamp),
-            batteryStateOfCharge=batteryState["chargeLevelAtPeriodStart"],
-            totalEnergyExportedFromStartToDate=batteryState["cumulativeExportTotal"],
-            totalEnergyImportedFromStartToDate=batteryState["cumulativeImportTotal"],
-            totalEnergyExportedOnCurrentDay=batteryState["sameDayExportTotal"],
-            totalEnergyImportedOnCurrentDay=batteryState["sameDayImportTotal"],
+            batteryStateOfCharge=batteryStateAtSimulationTimestamp[
+                "chargeLevelAtPeriodStart"
+            ],
+            totalEnergyExportedFromStartToDate=batteryStateAtSimulationTimestamp[
+                "cumulativeExportTotal"
+            ],
+            totalEnergyImportedFromStartToDate=batteryStateAtSimulationTimestamp[
+                "cumulativeImportTotal"
+            ],
+            totalEnergyExportedOnCurrentDay=batteryStateAtSimulationTimestamp[
+                "sameDayExportTotal"
+            ],
+            totalEnergyImportedOnCurrentDay=batteryStateAtSimulationTimestamp[
+                "sameDayImportTotal"
+            ],
             bidPricePrediction=next48Predictions["bid_prices"][
                 convertDateTimeToFormat(settlementPeriodDateTime)
             ],
