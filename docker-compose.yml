@@ -5,9 +5,9 @@ services:
     ports:
       - "5000:5000"
     environment:
-      SVC_MOCK_GRID_OPERATOR_HOST: "http://dynamodb-local:5001"
-      SVC_MARKET_HOST: "http://dynamodb-local:5002"
-      SVC_BATTERY_HOST: "http://dynamodb-local:5003"
+      SVC_MOCK_GRID_OPERATOR_HOST: "http://mock_grid_operator_service:5001"
+      SVC_MARKET_HOST: "http://market_service:5002"
+      SVC_BATTERY_HOST: "http://battery_service:5003"
       SVC_LOG_LOCATION: "./logs"
     volumes:
       - "./docker/optimiser/logs:/code/logs"
