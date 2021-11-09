@@ -24,6 +24,13 @@
 
 ## Architecture
 
+the application is made up of 4 services:
+
+1. The market service, responsible for providing bid and offer predictions at a given simulation step time.
+2. The mock ESO service, responsible for accepting offers/bids at an 80% rate
+3. The battery service, responsible for tracking the state of the battery and import/export totals
+4. The optimiser, responsible for coming up with a bid/offer pair at every simulation timestep
+
 ## Local Architecture
 
 ![Local Architecture](./energy_trade_optimiser_arch-Page-2.drawio.png)
