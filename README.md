@@ -18,7 +18,7 @@
    curl http://localhost:5000/strategy?firstSettlementPeriodStart=2021-10-04T00:00:00&lastSettlementPeriodStart=2021-10-04T02:30:00
    ```
 
-2. Check the response body from 1. for the optimisers submitted bid offer pairs.
+2. Check the response body from 1. for the optimiser's submitted bid offer pairs at every step in the simulation.
 3. The terminal shows a log of all key parameters. A log file will also be written to
    `docker/optimiser/logs/run_output.log` within the root of the project.
 
